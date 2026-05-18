@@ -1,0 +1,17 @@
+SOL 103
+$
+CEND
+SUBTITLE = Pad Modes Run
+METHOD = 3
+SPC = 200
+$
+BEGIN BULK
+$
+PARAM, GRDPNT, 0
+PARAM, WTMASS, 0.00259
+$
+EIGRL          3     -1.     30.               0                    MASS
+$
+INCLUDE 'Pad.bdf'
+$
+ENDDATA
