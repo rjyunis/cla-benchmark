@@ -1,0 +1,109 @@
+# CLA Benchmark Description Document
+
+## Overview
+This Coupled Loads Analysis (CLA) benchmark is not a tutorial on CLA. This does not provide any code.  This is intended to provide a problem and its solution, without the code required to produce the solution. With this, anyone can write and check their own CLA code against something (a benchmark).
+
+A beam model is used to represent the launch vehicle. The pad is modeled as a truss. Four load cases are run that span the range of techniques needed for most real launch vehicle CLA’s. 
+
+This is released as is.  Two independent teams have run this and gotten the same answers, so it is best to presume it is correct.  With that in mind, the POC’s listed at the end of the document are not available for debugging. However, any errors or ideas or clarification questions are welcome.
+
+## The Model
+The model is a beam with a few additional features:
+- Cross-beams at the base for a multipoint attachment to the Pad
+- Masses to represent fluids and get frequencies that are typical of launch vehicles
+- A small mass off-set from centerline to create bending cross-coupling
+- Damping to be used (optionally) for coupled damping
+
+The model is provided in NASTRAN bdf format.  The creators used NASTRAN for the modal solution. However, the model creates the same frequencies within Altair’s OptiStruct. 
+
+All solutions are with the LV and Pad use modal models up to 30 Hz.  The expected frequencies are provided so that the model is not a source of error.
+     
+
+
+
+## Events
+Four basic events are considered. These are intended to cover a breadth of different types of analyses.  Pay attention to the details provided or answers may differ quite a lot.  Things omitted from these cases are listed in the next section.
+
+### Overall:
+- Use 1% diagonal modal damping except for Shutdown Case 1b
+- See the Excel file for FEM details and other case details
+
+### Case 1: Shutdown
+This is a simple transient before going to harder events.  Simulate for 5 seconds.
+- a. Static initial conditions using a transient force with diagonal 1% damping
+- b. Same as 1a except coupled damping using damping defined in the FEM
+
+### Case 2: STEL
+Static Elastic (STEL) is an aeroelastic implementation of steady flight at angle of attack. 
+- a. Static solution with the vehicle trimmed (rotational acceleration about Y and Z axes are zero, aRY=aRZ=0) using the thrust at the nozzle for trimming. Use 4-degree rigid body angle of attack for aerodynamic forces. Do not include aeroelastic forces (do not change forces based on deflection).
+- b. Same as 2a except include aeroelastic stiffness (forces changes with deflection). This will be the STEL solution.
+
+### Case 3: Gust
+Gust is included for dynamic trimming, aeroelastic damping, and control system integration.  All cases use trajectory data at 30 seconds.
+- a. Trimmed (rotational acceleration about Y and Z axes are zero, aRY=aRZ=0) to a 1-cos 30 fps Z-Gust tuned to first mode, implement using instantaneous immersion (whole LV sees gust at same time), aeroelastic stiffness and damping included. Trimming forces are based on rigid body forces, not the elastic motion.  Simulate for 5 seconds.
+- b. Same as 3a except controlled instead of trimmed. Controller design will stabilize both lateral rotations (RY, RZ).  LV torsion (RX) is uncontrolled. Controller parameters are provided in the Excel file.  Simulate for 5 seconds.
+- c. Turbulent single case with Z gust forces, using same controller from Case 3b. Simuation starts at t=30 seconds, consistent with the trajectory. Use gust penetration (LV flies into gust, not all at once), with delays derived from velocity at 30 seconds (do not use time-consistent velocity during the simulation). Use aeroelastic forces derived from velocity at 30 seconds. Use other trajectory information as needed to compute turbulent gust forces.  Simulate for 8 seconds.
+
+### Case 4: Liftoff
+Liftoff demonstrates a multibody separation solution.
+- a. Start with static initial condition from gravity and ground winds, thrust begins at t=0, hold down bolts release at t=0.25sec, moments release with axial, assume a one-inch rise before lateral constraints are released (note that this pin is not modeled in the Pad FEM), recontact is not considered.
+
+
+## Omitted Items
+These benchmark cases are not meant to be comprehensive. Many things are omitted because they add complications without adding scope.  Some of these are mentioned here. It is not necessary to read this section.
+- Models:
+  - Model Reduction: All model reduction issues are the responsibility of the user.  Reduce the model to whatever form you want.  This example used NASTRAN to create the modal model and data recovery matrices. These were exported to Python for the CLA analysis.  However, there are an infinite set of viable tools and approaches.
+  - 3D Models and Hurty-Craig-Bampton (HCB) Models: These are just model creation complications which can be handled with little modification to the simulation codes. All modeling issues are outside scope, including coordinate systems.
+  - Hydroelastic and slosh modeling: While important, these are just additions to the model.
+  - Pressure stiffening is not included without loss of generality.
+- Events Ignored with Rationale:
+  - Maneuver Loads: An open loop simulation using trajectory info, so no new techniques.
+  - Buffet: Either transient or frequency domain, simple analysis once forces and correlation are known.
+  - Stage 2 Ignition: Simple transient, similar to Shutdown.
+  - Stage Separations: Generally a simple transient, solution very specific to LV design.
+  - Engine Oscillations: These can be simple transients caused by engine harmonics or complex feedback loops with the structure (pogo). Implementation is determined by the design and type of oscillations.  There are too many permutations of this to include an example.
+- Forces: 
+  - IOP and acoustics are difficult to define but easy to apply, so omitted.
+  - Recontact with the Pad after separation should not be, but this is a simple extension of liftoff by monitoring for negative clearance after separation.
+- Cryo loading and stresses are not included.
+- Dynamic Ground Winds: 
+  - In reality, liftoff initial conditions are dynamic and the T-0 time can come anywhere within the swaying of the vehicle. 
+  - This leads to Monte Carlo iterations, but each individual solution is no different than the example included with steady winds.
+- Monte Carlo: 
+  - Most events are defined by set of random parameters (engine performance, timing variations, atmospheric conditions, wind direction, alpha/beta, etc.) and the analysis is performed many times to understand the statistics of the event.
+  - However, each iteration is no more difficult than the first, so this type of Monte Carlo is not included.
+- Forcing Functions Development: 
+  - This is a very complex topic as the development of each forcing function is unique and complex. 
+  - Therefore, this benchmark has forcing functions provided. 
+  - See other references for forcing function development.
+- Aerodynamic Cross Forces: 
+  - Because this is a nearly symmetric beam example, cross-aero terms (e.g. change in Y-aero forces due to Y-rotation (Pitch)) are not included, but these should not be ignored in a regular LV.  
+- Uncertainty Factors: No uncertainty factors are used for simplicity.
+
+
+## Comparisons
+Comparisons to the provided answers are unlikely to be perfect. However, in our experience on this problem, comparisons of acceleration should be nearly exact (except of zero-values). We tried many variations to our approaches and the accelerations always seem to match with negligible differences. There is more variability in the element forces. This is to be expected given different versions of finite element codes, element formulations, and handling of the static correction. In our experience, the hardest case to match is 3c.  In this case, we were only able to achieve element force results within 1%. All other cases were much better.
+
+
+Files
+CLA_Benchmark_v1.0.zip	Downloadable file containing everything
+
+Top Level:
+CLA_Benchmark_Documentation.pdf		PDF documentation
+CLA_Benchmark_Documentation.docx	Word source documentation
+CLA_Benchmark_Documentation.txt		Text Documentation for longevity (this document)
+Benchmark_Info.xlsx			Excel file with model and forcing function info
+Benchmark_Info.txt			Text version of Excel file
+Model					Directory of model files (includes launch vehicle and pad)
+Results					Directory of results for all cases
+
+Points of Contact (Original benchmark problem)
+Sam Yunis, sam.yunis@outlook.com
+Tim Widrick, twmacro@gmail.com 
+
+Acknowledgements
+The following people were helpful in setting up this concept: Paul Blelloch, Alvar Kabe, and Mak Gilbert.
+
+Version
+This release is V1.0 dated Jan 24, 2024.
+# 
